@@ -51,6 +51,7 @@ async function run(){
     try{
         await connectToDB();
         const userCollection=client.db('InnoVenture').collection('user');
+        const startupCollection=client.db('InnoVenture').collection('StartupDB');
         app.post('/postUser',async(req,res)=>{
             const user=req.body;
             const result=await userCollection.insertOne(user);
@@ -75,6 +76,18 @@ async function run(){
 
             console.log(`SERVER LISTEN ON PORT ${port}`);
         })   
+        app.get('/isStartupPresent/:email',async(req,res)=>{
+            const findemail = req.params.email;
+            const start=await startupCollection.findOne({email:findemail})
+            console.log(start,findemail)
+            if(start){
+                res.status(200).json({sucess:true,data:start})
+            }
+            else{
+                res.status(400).json({sucess:false,message:"Not Found"})
+            }
+        }
+        )
 
     }
     catch(error){

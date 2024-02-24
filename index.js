@@ -61,7 +61,29 @@ async function run(){
 
         }
         )
-
+        app.post("/postStartup", async (req, res) => {
+          const startDet = req.body;
+          const result = startupCollection.insertOne(startDet);
+          res.send(result);
+        });
+        app.get("/getStartDet", async (req, res) => {
+          const startupDet = await startupCollection
+            .find({ email: req.query.email })
+            .toArray();
+          res.send(startupDet);
+        });
+        app.patch("/updateStartup", async (req, res) => {
+          const filters = req.query.email;
+          const newAttribute = req.body;
+          const options = { upsert: true };
+          const updatedAtt = { $set: newAttribute };
+          const result = await userCollection.updateOne(
+            filters,
+            updatedAtt,
+            options
+          );
+          res.send(result);
+        });
         app.get('/',async(req,res)=>{
             res.send('HELLO SERVER HERE!!')
 

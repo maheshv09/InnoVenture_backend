@@ -1,51 +1,45 @@
-const express=require('express')
-const cors=require('cors') //corss origin error
-const {MongoClient,ServerApiVersion }=require('mongodb')
-require('dotenv').config()    // all keys(username and pass) inside .env will be configured   
+const express = require("express");
+const cors = require("cors"); //corss origin error
+const { MongoClient, ServerApiVersion } = require("mongodb");
+require("dotenv").config(); // all keys(username and pass) inside .env will be configured
 
-
-
-const app=express();
-const port =process.env.PORT||8000;
-const userdb=process.env.USERDB;
-const passdb =process.env.PASSDB;
-
+const app = express();
+const port = process.env.PORT || 8000;
+const userdb = process.env.USERDB;
+const passdb = process.env.PASSDB;
 
 app.use(cors()); //use cors
 
 app.use(express.json());
 
+const uri = `mongodb+srv://${userdb}:${passdb}@cluster0.xt26dbm.mongodb.net/?retryWrites=true&w=majority`;
+const client = new MongoClient(
+  uri,
 
+  {
+    serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true,
+    },
+  }
+);
 
-const uri=`mongodb+srv://${userdb}:${passdb}@cluster0.xt26dbm.mongodb.net/?retryWrites=true&w=majority`
-const client=new MongoClient(uri,
-    
-    {serverApi:{
-        version:ServerApiVersion.v1,
-        strict:true,
-        deprecationErrors:true
-    }});
-
-
-
-
-async function connectToDB(){
-    try{
-        await client.connect();
-        console.log("Connection successfully done!!! +++");
-    }
-    catch(error){
-        console.log("ERROR :",error);
-    }
+async function connectToDB() {
+  try {
+    await client.connect();
+    console.log("Connection successfully done!!! +++");
+  } catch (error) {
+    console.log("ERROR :", error);
+  }
 }
-async function disconnectToDB(){
-    try{
-        await client.close();
-        console.log("Disconnected from database ");
-    }
-    catch(error){
-        console.log("ERROR :",error);
-    }
+async function disconnectToDB() {
+  try {
+    await client.close();
+    console.log("Disconnected from database ");
+  } catch (error) {
+    console.log("ERROR :", error);
+  }
 }
 async function run(){
     try{
@@ -97,6 +91,4 @@ async function run(){
 }
 
 run();
-module.exports=app;
-
-
+module.exports = app;

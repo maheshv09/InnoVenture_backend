@@ -77,7 +77,7 @@ async function run(){
           const newAttribute = req.body;
           const options = { upsert: true };
           const updatedAtt = { $set: newAttribute };
-          const result = await userCollection.updateOne(
+          const result = await startupCollection.updateOne(
             filters,
             updatedAtt,
             options

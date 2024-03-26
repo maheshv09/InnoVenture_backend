@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors"); //corss origin error
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion,ObjectId  } = require("mongodb");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -82,18 +82,20 @@ async function run() {
     await connectToDB();
     const userCollection = client.db("InnoVenture").collection("user");
     const startupCollection = client.db("InnoVenture").collection("StartupDB");
+    const productCollection = client.db("InnoVenture").collection("MarketDB");
+
     app.post("/postUser", async (req, res) => {
       const user = req.body;
       const result = await userCollection.insertOne(user);
       res.send(result);
     });
-    app.patch("/updateUser/:email", async (req, res) => {
-      const filters = req.params;
+    app.patch("/updateUser/:id", async (req, res) => {
+      const id = req.params.id;
       const newAttribute = req.body;
       const options = { upsert: true };
       const updatedAtt = { $set: newAttribute };
       const result = await userCollection.updateOne(
-        filters,
+        {firebase_Id:id},
         updatedAtt,
         options
       );
@@ -104,7 +106,8 @@ async function run() {
       upload.fields([{ name: "data" }]),
       async (req, res) => {
         try {
-          const { name, email, description, usp, photo } = req.body;
+          const { name, email, description, usp, photo,valuation,
+            availableEquity } = req.body;
 
           // Get the filenames of the uploaded photos
           // const photoFilename = req.files["photo"]
@@ -120,6 +123,8 @@ async function run() {
             email,
             description,
             usp,
+            valuation,
+            availableEquity,
             photo,
             data: dataFilename,
           };
@@ -137,10 +142,10 @@ async function run() {
         }
       }
     );
-    app.get("/getStartDet/:email", async (req, res) => {
+    app.get("/getStartDet/:id", async (req, res) => {
       try {
         const startupDet = await startupCollection.findOne({
-          email: req.params.email,
+          firebase_Id: req.params.id,
         });
 
         if (!startupDet) {
@@ -165,10 +170,14 @@ async function run() {
           description: startupDet.description,
           usp: startupDet.usp,
           photo: startupDet.photo,
+          valuation: startupDet.valuation,
+          availableEquity: startupDet.availableEquity,
           data: {
             filename: startupDet.data,
             content: dataContent,
           },
+          offer_amount:startupDet.offer_amount ,
+          offer_equity:startupDet.offer_equity
         };
 
         res.json(response);
@@ -179,13 +188,48 @@ async function run() {
           .json({ success: false, error: "Internal server error" });
       }
     });
+
+    app.patch("/addEquity/:firebase_Id", async (req, res) => {
+      const firebase_Id = req.params.firebase_Id;
+      const newAttribute = req.body;
+      const options = { upsert: true };
+      const updatedAtt = { $set: newAttribute };
+      const result = await startupCollection.updateOne(
+        { firebase_Id: firebase_Id },
+        updatedAtt,
+        options
+      );
+      res.send(result);
+    });
+    app.patch("/buyEquity/:firebase_Id", async (req, res) => {
+      const firebase_Id = req.params.firebase_Id;
+      const { amount, reqEquity } = req.body;
+      
+      const start = await startupCollection.findOne({
+        firebase_Id: firebase_Id,
+      });
+      const remAmt = start.offer_amount - amount;
+      const remEquity = start.offer_equity - reqEquity;
+      const options = { upsert: true };
+      const updatedAtt = {
+        $set: { offer_amount: remAmt, offer_equity: remEquity },
+      };
+      const result = await startupCollection.updateOne(
+        { firebase_Id: firebase_Id },
+        updatedAtt,
+        options
+      );
+      res.send(result);
+    });
+
     app.patch(
-      "/updateStartup/:email",
+      "/updateStartup/:id",
       upload.fields([{ name: "data" }]),
       async (req, res) => {
         try {
-          const { name, email, description, usp, photo } = req.body;
-
+          const { name, email, description, usp, photo, valuation,
+            availableEquity} = req.body;
+          const currID=req.params.id
           // Get the filename of the uploaded data file
           const dataFilename = req.files["data"]
             ? req.files["data"][0].filename
@@ -198,12 +242,14 @@ async function run() {
             description,
             usp,
             photo,
+            valuation,
+            availableEquity,
             data: dataFilename,
           };
           console.log("EMAILLLL:", email);
           // Find the startup document by email and update it with the new details
           const result = await startupCollection.updateOne(
-            { email: email }, // Filter by email
+            { firebase_Id:currID  }, // Filter by id
             { $set: updatedStartupDetails }, // Update with new details
             { upsert: true } // Create new document if not found
           );
@@ -225,24 +271,110 @@ async function run() {
         res.status(404).json({ success: false });
       }
     });
-    app.get("/", async (req, res) => {
+
+   
+
+
+    app.get("/checkLoginType/:email", async (req, res) => {
+      const email=req.params.email
+      console.log("EMAIL AT LOGIN :",email)
+      const startup=await userCollection.findOne({email : email})
+      console.log("STRATUP :",startup.logintype)
+      if(startup.logintype==="")
+        return res.status(200).json({success:true})
+      else  
+        return res.status(400).json({fail:false})
       res.send("HELLO SERVER HERE!!");
     });
     app.listen(port, () => {
       console.log(`SERVER LISTEN ON PORT ${port}`);
     });
-    app.get("/isStartupPresent/:email", async (req, res) => {
-      const findemail = req.params.email;
+    app.get("/isStartupPresent/:id", async (req, res) => {
+      const findID = req.params.id;
       const listStr = await startupCollection.find().toArray();
-      //console.log("Startupss", listStr);
-      const start = await startupCollection.findOne({ email: findemail });
-      //console.log(start, findemail);
+      const start = await startupCollection.findOne({ firebase_Id: findID });
       if (start) {
         res.status(200).json({ sucess: true, message: "Found" });
       } else {
-        res.status(201).json({ sucess: false, message: "Not Found" });
+        res.status(400).json({ sucess: false, message: "Not Found" });
       }
     });
+
+
+    // app.get("/getAllEquityDet", async (req, res) => {
+    //   try {
+    //     const startups = await startupCollection.find().toArray();
+    //     const equityDet = res
+    //       .status(200)
+    //       .json({ success: true, data: startups });
+    //   } catch (error) {
+    //     res.status(404).json({ success: false });
+    //   }
+    // });
+
+
+
+
+
+    app.post("/postProducts", async (req, res) => {
+      try {
+        const addAttr = req.body;
+        const resp = await productCollection.insertOne(addAttr);
+        res.status(200).json({
+          success: true,
+          data: resp,
+        });
+      } catch (error) {
+        res.status(400).json({ success: false });
+      }
+    });
+
+    app.get("/getProducts/:firebase_Id", async (req, res) => {
+      try {
+        const firebase_Id = req.params.firebase_Id;
+        const prod = await productCollection
+          .find({ firebase_Id: firebase_Id })
+          .toArray();
+        res.status(200).json({ products: prod });
+      } catch (error) {
+        res.status(400).json({ success: false });
+      }
+    });
+    app.patch("/updateProd/:productId", async (req, res) => {
+      try {
+        const prodId = req.params.productId;
+        const ObjectId1 = new ObjectId(prodId);
+        const { name, description } = req.body;
+        console.log("PRODDUCTIDD:", typeof prodId, name, description);
+        const resp = await productCollection.updateOne(
+          { _id: ObjectId1 },
+          { $set: { name: name, description: description } }
+        );
+        console.log("RESPP:", resp);
+        if (resp.modifiedCount === 1) {
+          res.status(200).json({ success: true, message: "ProductModified!!" });
+        } else {
+          res
+            .status(404)
+            .json({ success: false, message: "Product nhi mila!" });
+        }
+      } catch (error) {
+        console.log("ERRORRR:", error);
+        res.status(500).json({ success: false, message: "ERROR hai bhaiya" });
+      }
+    });
+
+
+
+
+
+
+    app.get("/", async (req, res) => {
+      res.send("HELLO SERVER HERE!!");
+    });
+
+
+
   } catch (error) {
     console.log("ERROR :", error);
   }

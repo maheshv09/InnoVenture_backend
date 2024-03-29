@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors"); //corss origin error
-const { MongoClient, ServerApiVersion,ObjectId  } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -89,13 +89,19 @@ async function run() {
       const result = await userCollection.insertOne(user);
       res.send(result);
     });
+    app.get("/getUser/:firebase_Id", async (req, res) => {
+      const user = req.body;
+      const firebase_Id = req.params.firebase_Id;
+      const result = await userCollection.findOne({ firebase_Id: firebase_Id });
+      res.send(result);
+    });
     app.patch("/updateUser/:id", async (req, res) => {
       const id = req.params.id;
       const newAttribute = req.body;
       const options = { upsert: true };
       const updatedAtt = { $set: newAttribute };
       const result = await userCollection.updateOne(
-        {firebase_Id:id},
+        { firebase_Id: id },
         updatedAtt,
         options
       );
@@ -106,8 +112,15 @@ async function run() {
       upload.fields([{ name: "data" }]),
       async (req, res) => {
         try {
-          const { name, email, description, usp, photo,valuation,
-            availableEquity } = req.body;
+          const {
+            name,
+            email,
+            description,
+            usp,
+            photo,
+            valuation,
+            availableEquity,
+          } = req.body;
 
           // Get the filenames of the uploaded photos
           // const photoFilename = req.files["photo"]
@@ -176,8 +189,8 @@ async function run() {
             filename: startupDet.data,
             content: dataContent,
           },
-          offer_amount:startupDet.offer_amount ,
-          offer_equity:startupDet.offer_equity
+          offer_amount: startupDet.offer_amount,
+          offer_equity: startupDet.offer_equity,
         };
 
         res.json(response);
@@ -204,7 +217,7 @@ async function run() {
     app.patch("/buyEquity/:firebase_Id", async (req, res) => {
       const firebase_Id = req.params.firebase_Id;
       const { amount, reqEquity } = req.body;
-      
+
       const start = await startupCollection.findOne({
         firebase_Id: firebase_Id,
       });
@@ -227,9 +240,16 @@ async function run() {
       upload.fields([{ name: "data" }]),
       async (req, res) => {
         try {
-          const { name, email, description, usp, photo, valuation,
-            availableEquity} = req.body;
-          const currID=req.params.id
+          const {
+            name,
+            email,
+            description,
+            usp,
+            photo,
+            valuation,
+            availableEquity,
+          } = req.body;
+          const currID = req.params.id;
           // Get the filename of the uploaded data file
           const dataFilename = req.files["data"]
             ? req.files["data"][0].filename
@@ -249,7 +269,7 @@ async function run() {
           console.log("EMAILLLL:", email);
           // Find the startup document by email and update it with the new details
           const result = await startupCollection.updateOne(
-            { firebase_Id:currID  }, // Filter by id
+            { firebase_Id: currID }, // Filter by id
             { $set: updatedStartupDetails }, // Update with new details
             { upsert: true } // Create new document if not found
           );
@@ -272,18 +292,14 @@ async function run() {
       }
     });
 
-   
-
-
     app.get("/checkLoginType/:email", async (req, res) => {
-      const email=req.params.email
-      console.log("EMAIL AT LOGIN :",email)
-      const startup=await userCollection.findOne({email : email})
-      console.log("STRATUP :",startup.logintype)
-      if(startup.logintype==="")
-        return res.status(200).json({success:true})
-      else  
-        return res.status(400).json({fail:false})
+      const email = req.params.email;
+      console.log("EMAIL AT LOGIN :", email);
+      const startup = await userCollection.findOne({ email: email });
+      console.log("STRATUP :", startup.logintype);
+      if (startup.logintype === "")
+        return res.status(200).json({ success: true });
+      else return res.status(400).json({ success: false });
       res.send("HELLO SERVER HERE!!");
     });
     app.listen(port, () => {
@@ -300,7 +316,6 @@ async function run() {
       }
     });
 
-
     // app.get("/getAllEquityDet", async (req, res) => {
     //   try {
     //     const startups = await startupCollection.find().toArray();
@@ -311,10 +326,6 @@ async function run() {
     //     res.status(404).json({ success: false });
     //   }
     // });
-
-
-
-
 
     app.post("/postProducts", async (req, res) => {
       try {
@@ -344,11 +355,18 @@ async function run() {
       try {
         const prodId = req.params.productId;
         const ObjectId1 = new ObjectId(prodId);
-        const { name, description } = req.body;
+        const { name, description, photo, price } = req.body;
         console.log("PRODDUCTIDD:", typeof prodId, name, description);
         const resp = await productCollection.updateOne(
           { _id: ObjectId1 },
-          { $set: { name: name, description: description } }
+          {
+            $set: {
+              name: name,
+              description: description,
+              photo: photo,
+              price: price,
+            },
+          }
         );
         console.log("RESPP:", resp);
         if (resp.modifiedCount === 1) {
@@ -364,17 +382,9 @@ async function run() {
       }
     });
 
-
-
-
-
-
     app.get("/", async (req, res) => {
       res.send("HELLO SERVER HERE!!");
     });
-
-
-
   } catch (error) {
     console.log("ERROR :", error);
   }

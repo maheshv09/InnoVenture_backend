@@ -386,6 +386,18 @@ async function run() {
         res.status(400).json({ success: false });
       }
     });
+    app.get("/getProduct/:productId", async (req, res) => {
+      try {
+        const productId = req.params.productId;
+        const ObjectId1 = new ObjectId(productId);
+        console.log("P ID :", productId, "OBj Id :", ObjectId1);
+        const prod = await productCollection.find({ _id: ObjectId1 }).toArray();
+        res.status(200).json({ products: prod });
+      } catch (error) {
+        console.log(error);
+        res.status(201).json({ success: false });
+      }
+    });
     app.patch("/updateProd/:productId", async (req, res) => {
       try {
         const prodId = req.params.productId;

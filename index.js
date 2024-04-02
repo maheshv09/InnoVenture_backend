@@ -431,11 +431,12 @@ async function run() {
     });
     app.post("/reportStart", async (req, res) => {
       try {
-        const { firebase_Id, startName, reason } = req.body;
+        const { firebase_Id, startName, reason, userName } = req.body;
         const resp = await reportCollection.insertOne({
           firebase_Id: firebase_Id,
           startName: startName,
           reason: reason,
+          userName: userName,
         });
         res.status(200).json({ success: true });
       } catch (error) {

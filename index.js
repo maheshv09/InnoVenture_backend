@@ -4,6 +4,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const axios = require("axios");
 require("dotenv").config(); // all keys(username and pass) inside .env will be configured
 
 const app = express();
@@ -83,7 +84,7 @@ async function run() {
     const userCollection = client.db("InnoVenture").collection("user");
     const startupCollection = client.db("InnoVenture").collection("StartupDB");
     const productCollection = client.db("InnoVenture").collection("MarketDB");
-
+    const reportCollection = client.db("InnoVenture").collection("ReportsDB");
     app.post("/postUser", async (req, res) => {
       const user = req.body;
       const result = await userCollection.insertOne(user);
@@ -117,6 +118,7 @@ async function run() {
             email,
             description,
             usp,
+            categories,
             photo,
             valuation,
             availableEquity,
@@ -136,6 +138,7 @@ async function run() {
             email,
             description,
             usp,
+            categories,
             valuation,
             availableEquity,
             photo,
@@ -182,6 +185,7 @@ async function run() {
           email: startupDet.email,
           description: startupDet.description,
           usp: startupDet.usp,
+          categories: startupDet.categories,
           photo: startupDet.photo,
           valuation: startupDet.valuation,
           availableEquity: startupDet.availableEquity,
@@ -191,6 +195,8 @@ async function run() {
           },
           offer_amount: startupDet.offer_amount,
           offer_equity: startupDet.offer_equity,
+          investment: startupDet.investment,
+          newInvestors: startupDet.newInvestors,
         };
 
         res.json(response);
@@ -214,18 +220,30 @@ async function run() {
       );
       res.send(result);
     });
+
     app.patch("/buyEquity/:firebase_Id", async (req, res) => {
       const firebase_Id = req.params.firebase_Id;
-      const { amount, reqEquity } = req.body;
+      const { buyer, buyerMail, amount, reqEquity } = req.body;
 
       const start = await startupCollection.findOne({
         firebase_Id: firebase_Id,
+      });
+      var investArr = start?.newInvestors || [];
+      investArr.push({
+        buyer: buyer,
+        buyerMail: buyerMail,
+        buyerAmount: amount,
+        buyerEquity: reqEquity,
       });
       const remAmt = start.offer_amount - amount;
       const remEquity = start.offer_equity - reqEquity;
       const options = { upsert: true };
       const updatedAtt = {
-        $set: { offer_amount: remAmt, offer_equity: remEquity },
+        $set: {
+          offer_amount: remAmt,
+          offer_equity: remEquity,
+          newInvestors: investArr,
+        },
       };
       const result = await startupCollection.updateOne(
         { firebase_Id: firebase_Id },
@@ -245,6 +263,7 @@ async function run() {
             email,
             description,
             usp,
+            categories,
             photo,
             valuation,
             availableEquity,
@@ -261,6 +280,7 @@ async function run() {
             email,
             description,
             usp,
+            categories,
             photo,
             valuation,
             availableEquity,
@@ -283,6 +303,21 @@ async function run() {
         }
       }
     );
+    app.patch("/addInvestments/:firebaseId", async (req, res) => {
+      try {
+        const firebase_Id = req.params.firebaseId;
+        const { investment } = req.body;
+        console.log("investment:", investment);
+        const resp = await startupCollection.updateOne(
+          { firebase_Id: firebase_Id },
+          { $set: { investment: investment } },
+          { upsert: true }
+        );
+        res.status(200).json({ success: true });
+      } catch (error) {
+        res.status(400).json({ success: false });
+      }
+    });
     app.get("/getAllStartups", async (req, res) => {
       try {
         const startups = await startupCollection.find().toArray();
@@ -379,6 +414,163 @@ async function run() {
       } catch (error) {
         console.log("ERRORRR:", error);
         res.status(500).json({ success: false, message: "ERROR hai bhaiya" });
+      }
+    });
+    app.delete("/removeScamStartup/:firebase_Id", async (req, res) => {
+      try {
+        const firebase_Id = req.params.firebase_Id;
+        const resp = await startupCollection.deleteOne({
+          firebase_Id: firebase_Id,
+        });
+        res.send(200).json({ success: true, message: "Startup deleted" });
+      } catch (error) {
+        res
+          .send(201)
+          .json({ success: false, message: "Couldn't delete the startup" });
+      }
+    });
+    app.post("/reportStart", async (req, res) => {
+      try {
+        const { firebase_Id, startName, reason } = req.body;
+        const resp = await reportCollection.insertOne({
+          firebase_Id: firebase_Id,
+          startName: startName,
+          reason: reason,
+        });
+        res.status(200).json({ success: true });
+      } catch (error) {
+        res.status(201).json({ success: false });
+      }
+    });
+    app.get("/getReportReq", async (req, res) => {
+      try {
+        const reqs = await reportCollection.find().toArray();
+        res.status(200).json({ success: true, data: reqs });
+      } catch (error) {
+        res.status(201).json({ success: false });
+      }
+    });
+    app.delete("/rejectReportReq/:reqId", async (req, res) => {
+      try {
+        const reqId = req.params.reqId;
+        const ObjectId1 = new ObjectId(reqId);
+        const resp = await reportCollection.deleteOne({ _id: ObjectId1 });
+        res.status(200).json({ success: true, message: "Request deleted" });
+      } catch (error) {
+        res
+          .status(201)
+          .json({ success: false, message: "failed to delete request" });
+      }
+    });
+
+    app.delete("/acceptReportReq/:firebase_Id", async (req, res) => {
+      try {
+        const firebase_Id = req.params.firebase_Id;
+        const response = await axios.delete(
+          `http://localhost:8000/removeScamStartup/${firebase_Id}`
+        );
+        if (response.status === 200) {
+          const resp = await reportCollection.deleteMany({
+            firebase_Id: firebase_Id,
+          });
+          return res
+            .status(200)
+            .json({ success: true, message: "Request and startup deleted" });
+        } else {
+          return res
+            .status(201)
+            .json({ success: false, message: "Error while deleting startup" });
+        }
+      } catch (error) {
+        return res.status(404).json({
+          success: false,
+          message: "Error while accepting report request",
+        });
+      }
+    });
+
+    app.post("/addQuestion/:firebaseId", async (req, res) => {
+      try {
+        const firebaseId = req.params.firebaseId;
+        const { question } = req.body;
+
+        // Update the startup document with the new question
+        const result = await startupCollection.updateOne(
+          { firebase_Id: firebaseId },
+          { $push: { queries: { question, answers: [] } } } // Add an empty array for answers
+        );
+
+        res
+          .status(200)
+          .json({ success: true, message: "Question added successfully" });
+      } catch (error) {
+        console.error("Error adding question:", error);
+        res
+          .status(500)
+          .json({ success: false, message: "Internal server error" });
+      }
+    });
+
+    // Add answer to an existing question
+    app.post("/addAnswer/:firebaseId/:questionIndex", async (req, res) => {
+      try {
+        const firebaseId = req.params.firebaseId;
+        const questionIndex = parseInt(req.params.questionIndex); // Convert to integer
+        const { answer } = req.body;
+
+        // Fetch the startup document from the database using firebase_Id
+        const startup = await startupCollection.findOne({
+          firebase_Id: firebaseId,
+        });
+
+        if (!startup) {
+          res
+            .status(404)
+            .json({ success: false, message: "Startup not found" });
+          return;
+        }
+
+        // Update the question with the provided answer
+        startup.queries[questionIndex].answers.push(answer);
+
+        // Update the startup document with the new answer
+        const result = await startupCollection.updateOne(
+          { firebase_Id: firebaseId },
+          { $set: { queries: startup.queries } }
+        );
+
+        res
+          .status(200)
+          .json({ success: true, message: "Answer added successfully" });
+      } catch (error) {
+        console.error("Error adding answer:", error);
+        res
+          .status(500)
+          .json({ success: false, message: "Internal server error" });
+      }
+    });
+
+    app.get("/getQnA/:firebaseId", async (req, res) => {
+      try {
+        const firebaseId = req.params.firebaseId;
+        const startup = await startupCollection.findOne({
+          firebase_Id: firebaseId,
+        });
+
+        if (!startup) {
+          res
+            .status(404)
+            .json({ success: false, message: "Startup not found" });
+          return;
+        }
+        const queries = startup.queries || [];
+
+        res.status(200).json({ success: true, data: queries });
+      } catch (error) {
+        console.error("Error retrieving questions and answers:", error);
+        res
+          .status(500)
+          .json({ success: false, message: "Internal server error" });
       }
     });
 
